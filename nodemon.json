@@ -1,0 +1,8 @@
+{
+  "execMap": {
+    "js": "node -r sucrase/register",
+    "ts": "node -r sucrase/register",
+    "jsx": "node -r sucrase/register",
+    "tsx": "node -r sucrase/register"
+  }
+}

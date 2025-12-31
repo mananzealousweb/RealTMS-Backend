@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ESNext",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./src",
+    "paths": {
+      "middlewares/*": ["middlewares/*"],
+      "controllers/*": ["controllers/*"],
+      "services/*": ["services/*"],
+      "utils/*": ["utils/*"],
+      "config/*": ["config/*"],
+      "routes/*": ["routes/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/index.ts", "src/config/database.js"],
+  "exclude": ["node_modules"]
+}

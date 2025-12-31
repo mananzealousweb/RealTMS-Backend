@@ -1,0 +1,41 @@
+{
+  "name": "realtms-backend",
+  "version": "1.0.0",
+  "description": "Real time Task management system",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node -r sucrase/register src/index.ts",
+    "dev": "nodemon src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mananzealousweb/RealTMS-Backend.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mananzealousweb/RealTMS-Backend/issues"
+  },
+  "homepage": "https://github.com/mananzealousweb/RealTMS-Backend#readme",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "body-parser": "^2.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.16.0",
+    "path": "^0.12.7",
+    "sequelize": "^6.37.7",
+    "yup": "^1.7.1"
+  },
+  "devDependencies": {
+    "@types/body-parser": "^1.19.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "sequelize-cli": "^6.6.3",
+    "sucrase": "^3.35.1"
+  }
+}
