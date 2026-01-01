@@ -2,7 +2,14 @@ import fs from "fs/promises";
 import Media from "../models/Media";
 import { db } from "../config/database";
 import Task from "../models/Task";
-import { NotFoundError, ForbiddenError } from "../utils/Apperror";
+import {
+  NotFoundError,
+  ForbiddenError,
+  BadRequestError,
+} from "../utils/Apperror";
+import User from "../models/User";
+import Comment from "../models/Comment";
+import { cleanupUploadedFiles } from "../utils/helper";
 
 class TaskService {
   /**
@@ -14,41 +21,50 @@ class TaskService {
     files?: Express.Multer.File[]
   ) {
     return await db.transaction(async (t) => {
-      // 1️⃣ Create task
-      const task = await Task.create(
-        {
-          user_id: userId,
-          ...payload,
-        },
-        { transaction: t }
-      );
+      try {
+        // 🔒 Media limit check (CREATE)
+        if (files && files.length > 5) {
+          throw new BadRequestError({
+            message: "You can attach a maximum of 5 files per task",
+          });
+        }
 
-      // 2️⃣ Handle media files (if any)
-      if (files && files.length > 0) {
-        const mediaEntries = files.map((file) => {
-          let type: "image" | "document" | "archive" = "document";
+        // 1️⃣ Create task
+        const task = await Task.create(
+          {
+            user_id: userId,
+            ...payload,
+          },
+          { transaction: t }
+        );
 
-          if (file.destination.includes("images")) {
-            type = "image";
-          } else if (file.destination.includes("archive")) {
-            type = "archive";
-          } else if (file.destination.includes("docs")) {
-            type = "document";
-          }
+        // 2️⃣ Handle media files
+        if (files && files.length > 0) {
+          const mediaEntries = files.map((file) => {
+            let type: "image" | "document" | "archive" = "document";
 
-          return {
-            task_id: task.id,
-            type,
-            path: file.path, // store full local path
-          };
-        });
+            if (file.destination.includes("images")) type = "image";
+            else if (file.destination.includes("archive")) type = "archive";
+            else if (file.destination.includes("docs")) type = "document";
 
-        await Media.bulkCreate(mediaEntries, {
-          transaction: t,
-        });
+            return {
+              task_id: task.id,
+              type,
+              path: file.path,
+            };
+          });
+
+          await Media.bulkCreate(mediaEntries, {
+            transaction: t,
+          });
+        }
+
+        return task;
+      } catch (error) {
+        // 🧹 CLEAN UP FILES IF ANY ERROR OCCURS
+        await cleanupUploadedFiles(files);
+        throw error; // rethrow so transaction rolls back
       }
-
-      return task;
     });
   }
 
@@ -61,10 +77,25 @@ class TaskService {
         {
           model: Media,
           as: "media",
-          attributes: ["type", "path"],
+          attributes: ["type", "path", "created_at"],
+        },
+        {
+          model: Comment,
+          as: "comments",
+          attributes: ["id", "comment", "created_at"],
+          include: [
+            {
+              model: User,
+              as: "author",
+              attributes: ["first_name", "last_name"],
+            },
+          ],
         },
       ],
-      order: [["created_at", "DESC"]],
+      order: [
+        ["created_at", "DESC"],
+        [{ model: Comment, as: "comments" }, "created_at", "ASC"],
+      ],
     });
   }
 
@@ -79,7 +110,20 @@ class TaskService {
           as: "media",
           attributes: ["type", "path"],
         },
+        {
+          model: Comment,
+          as: "comments",
+          attributes: ["id", "comment", "created_at"],
+          include: [
+            {
+              model: User,
+              as: "author",
+              attributes: ["first_name", "last_name"],
+            },
+          ],
+        },
       ],
+      order: [[{ model: Comment, as: "comments" }, "created_at", "ASC"]],
     });
 
     if (!task) {
@@ -99,79 +143,110 @@ class TaskService {
     files?: Express.Multer.File[]
   ) {
     return await db.transaction(async (t) => {
-      // 1️⃣ Fetch task
-      const task = await Task.findByPk(taskId, { transaction: t });
+      try {
+        // 1️⃣ Fetch task
+        const task = await Task.findByPk(taskId, { transaction: t });
 
-      if (!task) {
-        throw new NotFoundError({ message: "Task not found" });
-      }
-
-      if (task.user_id !== userId) {
-        throw new ForbiddenError({
-          message: "You are not allowed to update this task",
-        });
-      }
-
-      // 2️⃣ Update task fields (excluding remove_media)
-      let { remove_media } = payload;
-
-      if (typeof remove_media === "string") {
-        try {
-          remove_media = JSON.parse(remove_media);
-        } catch {
-          remove_media = [remove_media];
+        if (!task) {
+          throw new NotFoundError({ message: "Task not found" });
         }
-      }
-      const { ...taskPayload } = payload;
-      await task.update(taskPayload, { transaction: t });
 
-      // 3️⃣ Remove selected media
-      if (Array.isArray(remove_media) && remove_media.length > 0) {
-        const mediaToRemove = await Media.findAll({
-          where: {
-            task_id: taskId,
-            path: remove_media,
-          },
-          transaction: t,
-        });
+        if (task.user_id !== userId) {
+          throw new ForbiddenError({
+            message: "You are not allowed to update this task",
+          });
+        }
 
-        for (const media of mediaToRemove) {
+        // 2️⃣ Normalize remove_media
+        let { remove_media } = payload;
+
+        if (typeof remove_media === "string") {
           try {
-            await fs.unlink(media.path); // delete physical file
-          } catch (err) {
-            console.error("[FILE DELETE ERROR]", media.path, err);
+            remove_media = JSON.parse(remove_media);
+          } catch {
+            remove_media = [remove_media];
           }
         }
 
-        await Media.destroy({
-          where: {
-            task_id: taskId,
-            path: remove_media,
-          },
+        if (!Array.isArray(remove_media)) {
+          remove_media = [];
+        }
+
+        // 3️⃣ Fetch existing media count
+        const existingMediaCount = await Media.count({
+          where: { task_id: taskId },
           transaction: t,
         });
+
+        const removedCount = remove_media.length;
+        const newFilesCount = files?.length || 0;
+
+        const finalMediaCount =
+          existingMediaCount - removedCount + newFilesCount;
+
+        // 🔒 MEDIA LIMIT CHECK
+        if (finalMediaCount > 5) {
+          throw new BadRequestError({
+            message: "You can attach a maximum of 5 files per task",
+          });
+        }
+
+        // 4️⃣ Update task fields
+        const { remove_media: _, ...taskPayload } = payload;
+        await task.update(taskPayload, { transaction: t });
+
+        // 5️⃣ Remove selected media
+        if (remove_media.length > 0) {
+          const mediaToRemove = await Media.findAll({
+            where: {
+              task_id: taskId,
+              path: remove_media,
+            },
+            transaction: t,
+          });
+
+          for (const media of mediaToRemove) {
+            try {
+              await fs.unlink(media.path);
+            } catch (err) {
+              console.error("[FILE DELETE ERROR]", media.path, err);
+            }
+          }
+
+          await Media.destroy({
+            where: {
+              task_id: taskId,
+              path: remove_media,
+            },
+            transaction: t,
+          });
+        }
+
+        // 6️⃣ Add new uploaded files
+        if (files && files.length > 0) {
+          const mediaEntries = files.map((file) => {
+            let type: "image" | "document" | "archive" = "document";
+
+            if (file.destination.includes("images")) type = "image";
+            else if (file.destination.includes("archive")) type = "archive";
+            else if (file.destination.includes("docs")) type = "document";
+
+            return {
+              task_id: taskId,
+              type,
+              path: file.path,
+            };
+          });
+
+          await Media.bulkCreate(mediaEntries, { transaction: t });
+        }
+
+        return task;
+      } catch (error) {
+        // 🧹 CLEAN UP FILES IF ANY ERROR OCCURS
+        await cleanupUploadedFiles(files);
+        throw error; // rethrow so transaction rolls back
       }
-
-      // 4️⃣ Add new uploaded files
-      if (files && files.length > 0) {
-        const mediaEntries = files.map((file) => {
-          let type: "image" | "document" | "archive" = "document";
-
-          if (file.destination.includes("images")) type = "image";
-          else if (file.destination.includes("archive")) type = "archive";
-          else if (file.destination.includes("docs")) type = "document";
-
-          return {
-            task_id: taskId,
-            type,
-            path: file.path,
-          };
-        });
-
-        await Media.bulkCreate(mediaEntries, { transaction: t });
-      }
-
-      return task;
     });
   }
 
@@ -218,6 +293,11 @@ class TaskService {
           transaction: t,
         });
       }
+
+      await Comment.destroy({
+        where: { task_id: taskId },
+        transaction: t,
+      });
 
       // 5️⃣ Delete task (soft delete)
       await task.destroy({ transaction: t });

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import fs from "fs/promises";
 import dotenv from "dotenv";
 dotenv.config();
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY!; //For encrypting data
@@ -27,4 +28,16 @@ export const decrypt = (encrypted: string): string => {
   let decrypted = decipher.update(encryptedData, "hex", "utf8");
   decrypted += decipher.final("utf8");
   return decrypted;
+};
+
+export const cleanupUploadedFiles = async (files?: Express.Multer.File[]) => {
+  if (!files || files.length === 0) return;
+
+  for (const file of files) {
+    try {
+      await fs.unlink(file.path);
+    } catch (err) {
+      console.error("[FILE CLEANUP ERROR]", file.path, err);
+    }
+  }
 };

@@ -1,4 +1,4 @@
-import multer from "multer";
+import multer, { MulterError } from "multer";
 import path from "path";
 import fs from "fs";
 import {
@@ -7,6 +7,8 @@ import {
   MAX_FILES_PER_TASK,
 } from "../utils/constants";
 import { BadRequestError } from "../utils/Apperror";
+import { NextFunction } from "express";
+import { handleError } from "../utils/errorHandler";
 
 // 📂 Ensure base upload folder exists
 const UPLOAD_BASE_PATH = path.join(process.cwd(), "uploads");
@@ -79,7 +81,7 @@ Archive: ${ALLOWED_FILE_EXTENSIONS.archive.join(", ")}`,
   cb(null, true);
 };
 
-export const uploadTaskFiles = multer({
+export const multerUpload = multer({
   storage,
   fileFilter,
   limits: {
@@ -87,3 +89,37 @@ export const uploadTaskFiles = multer({
     files: MAX_FILES_PER_TASK,
   },
 }).array("files", MAX_FILES_PER_TASK);
+
+export const uploadTaskFiles = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  multerUpload(req, res, (err: any) => {
+    // ✅ Multer specific errors
+    try {
+      if (err instanceof MulterError) {
+        if (err.code === "LIMIT_FILE_COUNT") {
+          throw new BadRequestError({
+            message: "You can attach a maximum of 5 files per task",
+          });
+        }
+
+        if (err.code === "LIMIT_FILE_SIZE") {
+          throw new BadRequestError({
+            message: "File size exceeds allowed limit",
+          });
+        }
+
+        throw new BadRequestError({
+          message: err.message,
+        });
+      }
+
+      // ✅ No error → continue
+      next();
+    } catch (err) {
+      handleError(err, req, res, next);
+    }
+  });
+};

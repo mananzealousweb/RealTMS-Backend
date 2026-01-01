@@ -59,3 +59,16 @@ export const UPDATE_TASK_SCHEMA = Yup.object({
   due_date: Yup.date().nullable(),
 });
 
+export const CREATE_COMMENT_SCHEMA = Yup.object({
+  task_id: Yup.number().required("Task ID is required").positive().integer(),
+
+  comment: Yup.string()
+    .required("Comment is required")
+    .min(1, "Comment cannot be empty"),
+});
+
+export const UPDATE_COMMENT_SCHEMA = Yup.object({
+  comment: Yup.string()
+    .required("Comment is required")
+    .min(1, "Comment cannot be empty"),
+});
