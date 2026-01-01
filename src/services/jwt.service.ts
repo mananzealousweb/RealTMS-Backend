@@ -33,7 +33,7 @@ const jwtService = {
     jwtConfig = {
       accessSecret,
       refreshSecret,
-      accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "1m",
+      accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
       refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
     };
 

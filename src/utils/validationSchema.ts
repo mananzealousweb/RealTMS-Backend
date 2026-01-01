@@ -36,3 +36,26 @@ export const REGISTER_USER_SCHEMA = Yup.object({
       "Password must contain at least one lowercase character, one uppercase character, one digit and one special character"
     ),
 });
+
+export const CREATE_TASK_SCHEMA = Yup.object({
+  title: Yup.string()
+    .required("Title is required")
+    .max(255, "Title must be at most 255 characters"),
+
+  description: Yup.string().nullable(),
+
+  status: Yup.string().oneOf(["to_do", "in_progress", "done"]).default("to_do"),
+
+  priority: Yup.string().oneOf(["low", "medium", "high"]).default("medium"),
+
+  due_date: Yup.date().nullable(),
+});
+
+export const UPDATE_TASK_SCHEMA = Yup.object({
+  title: Yup.string().max(255),
+  description: Yup.string().nullable(),
+  status: Yup.string().oneOf(["to_do", "in_progress", "done"]),
+  priority: Yup.string().oneOf(["low", "medium", "high"]),
+  due_date: Yup.date().nullable(),
+});
+
