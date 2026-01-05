@@ -6,3 +6,15 @@ export const ALLOWED_FILE_EXTENSIONS = {
   docs: [".pdf", ".docx", ".txt"],
   archive: [".zip"],
 };
+
+export const SOCKET_EVENTS = {
+  // Task events
+  TASK_CREATED: "task:created",
+  TASK_UPDATED: "task:updated",
+  TASK_DELETED: "task:deleted",
+
+  // Comment events
+  COMMENT_ADDED: "comment:added",
+  COMMENT_UPDATED: "comment:updated",
+  COMMENT_DELETED: "comment:deleted",
+};

@@ -62,13 +62,31 @@ const authController = {
       handleError(error, req, res, next);
     }
   },
+  logout: async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      await AuthService.logout(req.user!.user_id);
+
+      return res.status(200).json({
+        success: true,
+        message: "Logged out successfully",
+      });
+    } catch (error) {
+      handleError(error, req, res, next);
+    }
+  },
   getUser: async (
     req: Request,
     res: Response,
     next: NextFunction
   ): Promise<any> => {
     try {
-      const user = await User.findByPk(req.user?.user_id);
+      const user = await User.findByPk(req.user?.user_id, {
+        attributes: ["id", "first_name", "last_name", "age", "email"],
+      });
       return res.status(201).json({
         success: true,
         message: "User data retrieved successfully",

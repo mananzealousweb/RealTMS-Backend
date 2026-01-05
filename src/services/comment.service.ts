@@ -1,7 +1,9 @@
+import { SOCKET_EVENTS } from "../utils/constants";
 import { db } from "../config/database";
 import Comment from "../models/Comment";
 import Task from "../models/Task";
 import { NotFoundError, ForbiddenError } from "../utils/Apperror";
+import socketService from "./socket.service";
 
 class CommentService {
   /**
@@ -24,6 +26,21 @@ class CommentService {
         { transaction: t }
       );
 
+      // Get updated comment count for this task
+      const commentCount = await Comment.count({
+        where: { task_id: taskId },
+        transaction: t,
+      });
+
+      // 🔔 EMIT REAL-TIME EVENT: Comment Added
+      socketService.emit(SOCKET_EVENTS.COMMENT_ADDED, {
+        comment: newComment,
+        taskId,
+        commentCount,
+        addedBy: userId,
+        timestamp: new Date().toISOString(),
+      });
+
       return newComment;
     });
   }
@@ -44,7 +61,7 @@ class CommentService {
       include: [
         {
           association: "author",
-          attributes: ["first_name", "last_name"],
+          attributes: ["id", "first_name", "last_name"],
         },
       ],
     });
@@ -77,6 +94,14 @@ class CommentService {
 
       await existingComment.update({ comment }, { transaction: t });
 
+      // 🔔 EMIT REAL-TIME EVENT: Comment Updated
+      socketService.emit(SOCKET_EVENTS.COMMENT_UPDATED, {
+        comment: existingComment,
+        taskId: existingComment.task_id,
+        updatedBy: userId,
+        timestamp: new Date().toISOString(),
+      });
+
       return existingComment;
     });
   }
@@ -101,6 +126,20 @@ class CommentService {
       }
 
       await existingComment.destroy({ transaction: t });
+
+      // Get updated comment count after deletion
+      const commentCount = await Comment.count({
+        where: { task_id: existingComment.task_id },
+        transaction: t,
+      });
+      // 🔔 EMIT REAL-TIME EVENT: Comment Deleted
+      socketService.emit(SOCKET_EVENTS.COMMENT_DELETED, {
+        commentId,
+        taskId: existingComment.task_id,
+        commentCount,
+        deletedBy: userId,
+        timestamp: new Date().toISOString(),
+      });
       return true;
     });
   }

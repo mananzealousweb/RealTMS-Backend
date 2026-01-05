@@ -10,6 +10,8 @@ import {
 import User from "../models/User";
 import Comment from "../models/Comment";
 import { cleanupUploadedFiles } from "../utils/helper";
+import socketService from "./socket.service";
+import { SOCKET_EVENTS } from "../utils/constants";
 
 class TaskService {
   /**
@@ -59,6 +61,13 @@ class TaskService {
           });
         }
 
+        // 🔔 EMIT REAL-TIME EVENT: Task Created
+        socketService.emit(SOCKET_EVENTS.TASK_CREATED, {
+          task,
+          createdBy: userId,
+          timestamp: new Date().toISOString(),
+        });
+
         return task;
       } catch (error) {
         // 🧹 CLEAN UP FILES IF ANY ERROR OCCURS
@@ -75,6 +84,11 @@ class TaskService {
     return await Task.findAll({
       include: [
         {
+          model: User,
+          as: "owner",
+          attributes: ["id", "first_name", "last_name", "email"],
+        },
+        {
           model: Media,
           as: "media",
           attributes: ["type", "path", "created_at"],
@@ -87,7 +101,7 @@ class TaskService {
             {
               model: User,
               as: "author",
-              attributes: ["first_name", "last_name"],
+              attributes: ["id", "first_name", "last_name"],
             },
           ],
         },
@@ -106,6 +120,11 @@ class TaskService {
     const task = await Task.findByPk(taskId, {
       include: [
         {
+          model: User,
+          as: "owner",
+          attributes: ["id", "first_name", "last_name", "email"],
+        },
+        {
           model: Media,
           as: "media",
           attributes: ["type", "path"],
@@ -118,7 +137,7 @@ class TaskService {
             {
               model: User,
               as: "author",
-              attributes: ["first_name", "last_name"],
+              attributes: ["id", "first_name", "last_name"],
             },
           ],
         },
@@ -241,6 +260,13 @@ class TaskService {
           await Media.bulkCreate(mediaEntries, { transaction: t });
         }
 
+        // 🔔 EMIT REAL-TIME EVENT: Task Updated
+        socketService.emit(SOCKET_EVENTS.TASK_UPDATED, {
+          task,
+          updatedBy: userId,
+          timestamp: new Date().toISOString(),
+        });
+
         return task;
       } catch (error) {
         // 🧹 CLEAN UP FILES IF ANY ERROR OCCURS
@@ -301,6 +327,13 @@ class TaskService {
 
       // 5️⃣ Delete task (soft delete)
       await task.destroy({ transaction: t });
+
+      // 🔔 EMIT REAL-TIME EVENT: Task Deleted
+      socketService.emit(SOCKET_EVENTS.TASK_DELETED, {
+        taskId,
+        deletedBy: userId,
+        timestamp: new Date().toISOString(),
+      });
 
       return true;
     });

@@ -30,6 +30,17 @@ export const authMiddleware = async (
     // Try to verify access token
     try {
       const payload = jwtService.verifyAccessToken(accessToken);
+      const authRecord = await Authorization.findOne({
+        where: { user_id: payload.user_id },
+      });
+
+      if (!authRecord || !authRecord.refresh_token) {
+        throw new UnauthorizedError({
+          message: "Session expired. Please login again.",
+        });
+      }
+
+      res.setHeader("x-access-token", "");
       req.user = payload;
       return next();
     } catch (accessError: any) {

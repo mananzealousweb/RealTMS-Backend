@@ -144,6 +144,25 @@ class AuthService {
       };
     });
   }
+
+  static async logout(userId: number) {
+    return await db.transaction(async (t) => {
+      const auth = await Authorization.findOne({
+        where: { user_id: userId },
+        transaction: t,
+      });
+
+      if (!auth) {
+        // Already logged out or session missing
+        return true;
+      }
+
+      // Soft delete authorization (invalidate tokens)
+      await auth.destroy({ transaction: t });
+
+      return true;
+    });
+  }
 }
 
 export default AuthService;

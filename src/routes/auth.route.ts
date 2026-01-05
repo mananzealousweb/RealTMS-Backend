@@ -3,7 +3,9 @@ import authController from "../controllers/auth.controller";
 import { Router } from "express";
 
 const auth = Router();
-auth.get("/get", authMiddleware, authController.getUser);
+auth.get("/user", authMiddleware, authController.getUser);
 auth.post("/login", authController.login);
 auth.post("/register", authController.register);
+auth.delete("/logout", authMiddleware, authController.logout);
+
 export { auth };
