@@ -54,7 +54,11 @@ const expressService = {
       // Static files
       app.use(
         "/uploads/",
-        express.static(path.join(__dirname, "../../uploads"))
+        express.static(path.join(__dirname, "../../uploads"), {
+          setHeaders: (res) => {
+            res.setHeader("Content-Disposition", "attachment");
+          },
+        })
       );
 
       // Create HTTP server (needed for Socket.IO)
