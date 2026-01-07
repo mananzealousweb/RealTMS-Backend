@@ -44,7 +44,9 @@ class Task extends Model {
           defaultValue: "medium",
         },
         due_date: {
-          type: DataTypes.DATEONLY,
+          type: DataTypes.DATE,
+          allowNull: true,
+          defaultValue: null,
         },
         created_at: {
           type: DataTypes.DATE,
